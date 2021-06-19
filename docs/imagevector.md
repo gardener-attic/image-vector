@@ -5,18 +5,18 @@ Image vectors describe container images that are deployed into a cluster by a se
 For example [Gardener](https://github.com/gardener/gardener) and other extensions are using the image vector to describe images that are deployed into seed and shoot clusters.
 
 Image vectors can also be overwritten which means that image locations can be replaced.
-This is useful if images are copied to a private or regional registry.
+This is useful if images are copied to private or regional registries.
 
 ### Structure
 
-An image vector is a list of image entries.
+An image vector is a list of image entries.<br>
 An image entry consists of 
 - **a semantic name** that is used by the application to identify the image.
 - **a repository** that describes the oci image repository.
 - **an optional tag** that describes the tag or digest of the image. <br>
   The actual image location is calculated using the repository and the tag: `<repository>:<tag>` or `<repository>@<tag>` for digests. <br>
   See [generic image entries](#generic-image-entries) for a description if the tag is not defined.
-- **an optional target version** that the describes the kubernetes version that image is targeted for. <br>
+- **an optional target version** that describes the version of the Kubernetes cluster that image is targeted for. <br>
   The version is a semver constraint as defined by the [mastermind semver lib](https://github.com/Masterminds/semver#checking-version-constraints) so that multiple Kubernetes version can be matched.
 - **an optional source repository** that describes the source github repository or docker file. This is only used for documentation purposes and has no effect for the evaluation.
   
