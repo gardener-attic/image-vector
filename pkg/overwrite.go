@@ -11,13 +11,98 @@ import (
 
 	"github.com/Masterminds/semver/v3"
 	cdv2 "github.com/gardener/component-spec/bindings-go/apis/v2"
+	"github.com/gardener/component-spec/bindings-go/ctf"
 )
 
-// ComponentResolverFunc describes a function that can resolve a component descriptor by its name and version
-type ComponentResolverFunc func(ctx context.Context, repoCtx cdv2.Repository, name, version string) (*cdv2.ComponentDescriptor, error)
-
-// GenerateImageOverwrite parses a component descriptor and returns the defined image vector
-func GenerateImageOverwrite(cd *cdv2.ComponentDescriptor, list *cdv2.ComponentDescriptorList) (*ImageVector, error) {
+// GenerateImageOverwrite parses a component descriptor and returns the defined image vector.
+//
+// Images can be defined in a component descriptor in 3 different ways:
+// 1. as 'ociImage' resource: The image is defined a default resource of type 'ociImage' with a access of type 'ociRegistry'.
+//    It is expected that the resource contains the following labels to be identified as image vector image.
+//    The resulting image overwrite will contain the repository and the tag/digest from the access method.
+// <pre>
+// resources:
+// - name: pause-container
+//   version: "3.1"
+//   type: ociImage
+//   relation: external
+//   extraIdentity:
+//     "imagevector-gardener-cloud+tag": "3.1"
+//   labels:
+//   - name: imagevector.gardener.cloud/name
+//     value: pause-container
+//   - name: imagevector.gardener.cloud/repository
+//     value: gcr.io/google_containers/pause-amd64
+//   - name: imagevector.gardener.cloud/source-repository
+//     value: github.com/kubernetes/kubernetes/blob/master/build/pause/Dockerfile
+//   - name: imagevector.gardener.cloud/target-version
+//     value: "< 1.16"
+//   access:
+//     type: ociRegistry
+//     imageReference: gcr.io/google_containers/pause-amd64:3.1
+// </pre>
+//
+// 2. as component reference: The images are defined in a label "imagevector.gardener.cloud/images".
+//    The resulting image overwrite will contain all images defined in the images label.
+//    Their repository and tag/digest will be matched from the resources defined in the actual component's resources.
+//
+//   Note: The images from the label are matched to the resources using their name and version. The original image reference do not exit anymore.
+//
+// <pre>
+// componentReferences:
+// - name: cluster-autoscaler-abc
+//   componentName: github.com/gardener/autoscaler
+//   version: v0.10.1
+//   labels:
+//   - name: imagevector.gardener.cloud/images
+//     value:
+//       images:
+//       - name: cluster-autoscaler
+//         repository: eu.gcr.io/gardener-project/gardener/autoscaler/cluster-autoscaler
+//         tag: "v0.10.1"
+// </pre>
+//
+// 3. as generic images from the component descriptor labels.
+//   Generic images are images that do not directly result in a resource.
+//   They will be matched with another component descriptor that actually defines the images.
+//   The other component descriptor MUST have the "imagevector.gardener.cloud/name" label in order to be matched.
+//
+// <pre>
+// meta:
+//   schemaVersion: 'v2'
+// component:
+//   labels:
+//   - name: imagevector.gardener.cloud/images
+//     value:
+//       images:
+//       - name: hyperkube
+//         repository: k8s.gcr.io/hyperkube
+//         targetVersion: "< 1.19"
+// </pre>
+//
+// <pre>
+// meta:
+//   schemaVersion: 'v2'
+// component:
+//   resources:
+//   - name: hyperkube
+//     version: "v1.19.4"
+//     type: ociImage
+//     extraIdentity:
+//       "imagevector-gardener-cloud+tag": "v1.19.4"
+//     labels:
+//     - name: imagevector.gardener.cloud/name
+//       value: hyperkube
+//     - name: imagevector.gardener.cloud/repository
+//       value: k8s.gcr.io/hyperkube
+//     access:
+//	   type: ociRegistry
+//	   imageReference: my-registry/hyperkube:v1.19.4
+// </pre>
+func GenerateImageOverwrite(ctx context.Context,
+	compResolver ctf.ComponentResolver,
+	cd *cdv2.ComponentDescriptor,
+	list *cdv2.ComponentDescriptorList) (*ImageVector, error) {
 	imageVector := &ImageVector{}
 
 	// parse all images from the component descriptors resources
@@ -27,7 +112,7 @@ func GenerateImageOverwrite(cd *cdv2.ComponentDescriptor, list *cdv2.ComponentDe
 	}
 	imageVector.Images = append(imageVector.Images, images...)
 
-	images, err = parseImagesFromComponentReferences(cd, list)
+	images, err = parseImagesFromComponentReferences(ctx, compResolver, cd)
 	if err != nil {
 		return nil, err
 	}
@@ -87,7 +172,7 @@ func parseImagesFromResources(resources []cdv2.Resource) ([]ImageEntry, error) {
 }
 
 // parseImagesFromComponentReferences parse all images from the component descriptors references
-func parseImagesFromComponentReferences(ca *cdv2.ComponentDescriptor, list *cdv2.ComponentDescriptorList) ([]ImageEntry, error) {
+func parseImagesFromComponentReferences(ctx context.Context, compResolver ctf.ComponentResolver, ca *cdv2.ComponentDescriptor) ([]ImageEntry, error) {
 	images := make([]ImageEntry, 0)
 
 	for _, ref := range ca.ComponentReferences {
@@ -101,7 +186,7 @@ func parseImagesFromComponentReferences(ca *cdv2.ComponentDescriptor, list *cdv2
 			continue
 		}
 
-		refCD, err := list.GetComponent(ref.ComponentName, ref.Version)
+		refCD, err := compResolver.Resolve(ctx, ca.GetEffectiveRepositoryContext(), ref.ComponentName, ref.Version)
 		if err != nil {
 			return nil, fmt.Errorf("unable to resolve component descriptor %q: %w", ref.GetName(), err)
 		}
@@ -179,7 +264,7 @@ func parseGenericImages(ca *cdv2.ComponentDescriptor, list *cdv2.ComponentDescri
 				if err := parseResourceAccess(&entry, res); err != nil {
 					return nil, fmt.Errorf("unable to parse oci access from resource %q of component %q: %w", res.GetName(), ca.GetName(), err)
 				}
-				targetVersion := fmt.Sprintf("= %s", *entry.Tag)
+				targetVersion := fmt.Sprintf("= %s", res.GetVersion())
 				entry.TargetVersion = &targetVersion
 				images = append(images, entry)
 			}

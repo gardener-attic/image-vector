@@ -39,24 +39,24 @@ var (
 
 // ImageVector defines a image vector that defines oci images with specific requirements
 type ImageVector struct {
-	Images []ImageEntry `json:"images"`
-	Labels cdv2.Labels  `json:"labels,omitempty"`
+	Images []ImageEntry `json:"images"  yaml:"images,omitempty"`
+	Labels cdv2.Labels  `json:"labels,omitempty"  yaml:"labels,omitempty"`
 }
 
 // ImageEntry defines one image entry of a image vector
 type ImageEntry struct {
 	// Name defines the name of the image entry
-	Name string `json:"name"`
+	Name string `json:"name" yaml:"name"`
 	// SourceRepository is the name of the repository where the image was build from
-	SourceRepository string `json:"sourceRepository,omitempty"`
+	SourceRepository string `json:"sourceRepository,omitempty" yaml:"sourceRepository,omitempty"`
 	// Repository defines the image repository
-	Repository string `json:"repository"`
+	Repository string `json:"repository" yaml:"repository,omitempty"`
 	// +optional
-	Tag *string `json:"tag,omitempty"`
+	Tag *string `json:"tag,omitempty" yaml:"tag,omitempty"`
 	// +optional
-	RuntimeVersion *string `json:"runtimeVersion,omitempty"`
+	RuntimeVersion *string `json:"runtimeVersion,omitempty" yaml:"runtimeVersion,omitempty"`
 	// +optional
-	TargetVersion *string `json:"targetVersion,omitempty"`
+	TargetVersion *string `json:"targetVersion,omitempty" yaml:"targetVersion,omitempty"`
 	// +optional
-	Labels cdv2.Labels `json:"labels,omitempty"`
+	Labels cdv2.Labels `json:"labels,omitempty" yaml:"labels,omitempty"`
 }

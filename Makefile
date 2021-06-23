@@ -28,3 +28,6 @@ check:
 .PHONY: test
 test:
 	@go test ./pkg/...
+
+.PHONY: verify
+verify: check test

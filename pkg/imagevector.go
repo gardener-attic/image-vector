@@ -1,17 +1,19 @@
+// SPDX-FileCopyrightText: 2020 SAP SE or an SAP affiliate company and Gardener contributors.
+//
+// SPDX-License-Identifier: Apache-2.0
+
 package pkg
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
 	"strings"
 
-	"github.com/docker/distribution/reference"
 	cdv2 "github.com/gardener/component-spec/bindings-go/apis/v2"
 	"github.com/gardener/component-spec/bindings-go/apis/v2/cdutils"
-	"k8s.io/apimachinery/pkg/util/yaml"
-
-	"github.com/gardener/component-cli/ociclient"
+	"sigs.k8s.io/yaml"
 )
 
 // ParseImageOptions are options to configure the image vector parsing.
@@ -37,17 +39,157 @@ var (
 
 // ComponentReferenceLabelValue is the value configuration for the component reference
 type ComponentReferenceLabelValue struct {
-	Name          string `json:"name,omitempty"`
-	ComponentName string `json:"componentName,omitempty"`
-	Version       string `json:"version,omitempty"`
+	Name          string `json:"name,omitempty" yaml:"name,omitempty"`
+	ComponentName string `json:"componentName,omitempty" yaml:"componentName,omitempty"`
+	Version       string `json:"version,omitempty" yaml:"version,omitempty"`
 }
 
 // ParseImageVector parses a image vector and generates the corresponding component descriptor resources.
+// It is expected that the image vector yaml is passed as io.Reader.
+//
+// There are 4 different scenarios how images are added to the component descriptor.
+// 1. The image is defined with a tag and will be directly translated as oci image resource.
+//
+// <pre>
+// images:
+// - name: pause-container
+//   sourceRepository: github.com/kubernetes/kubernetes/blob/master/build/pause/Dockerfile
+//   repository: gcr.io/google_containers/pause-amd64
+//   tag: "3.1"
+// </pre>
+//
+// <pre>
+// meta:
+//   schemaVersion: 'v2'
+// ...
+// resources:
+// - name: pause-container
+//   version: "3.1"
+//   type: ociImage
+//   extraIdentity:
+//     "imagevector-gardener-cloud+tag": "3.1"
+//   labels:
+//   - name: imagevector.gardener.cloud/name
+//     value: pause-container
+//   - name: imagevector.gardener.cloud/repository
+//     value: gcr.io/google_containers/pause-amd64
+//   - name: imagevector.gardener.cloud/source-repository
+//     value: github.com/kubernetes/kubernetes/blob/master/build/pause/Dockerfile
+//   access:
+//     type: ociRegistry
+//     imageReference: gcr.io/google_containers/pause-amd64:3.1
+// </pre>
+//
+// 2. The image is defined by another component so the image is added as label ("imagevector.gardener.cloud/images") to the "componentReference".
+//
+// Images that are defined by other components can be specified
+// 1. when the image's repository matches the given "--component-prefixes"
+// 2. the image is labeled with "imagevector.gardener.cloud/component-reference"
+//
+// If the component reference is not yet defined it will be automatically added.
+// If multiple images are defined for the same component reference they are added to the images list in the label.
+//
+// <pre>
+// images:
+// - name: cluster-autoscaler
+//   sourceRepository: github.com/gardener/autoscaler
+//   repository: eu.gcr.io/gardener-project/gardener/autoscaler/cluster-autoscaler
+//   targetVersion: "< 1.16"
+//   tag: "v0.10.0"
+//   labels: # recommended bbut only needed when "--component-prefixes" is not defined
+//   - name: imagevector.gardener.cloud/component-reference
+//     value:
+//       name: cla # defaults to image.name
+//       componentName: github.com/gardener/autoscaler # defaults to image.sourceRepository
+//       version: v0.10.0 # defaults to image.version
+// </pre>
+//
+// <pre>
+// meta:
+//   schemaVersion: 'v2'
+// ...
+// componentReferences:
+// - name: cla
+//   componentName: github.com/gardener/autoscaler
+//   version: v0.10.0
+//   extraIdentity:
+//     imagevector-gardener-cloud+tag: v0.10.0
+//   labels:
+//   - name: imagevector.gardener.cloud/images
+//     value:
+//     images:
+//	 - name: cluster-autoscaler
+//	   repository: eu.gcr.io/gardener-project/gardener/autoscaler/cluster-autoscaler
+//	   sourceRepository: github.com/gardener/autoscaler
+//	   tag: v0.10.0
+//	   targetVersion: '< 1.16'
+//  </pre>
+//
+// 3. The image is a generic dependency where the actual images are defined by the overwrite.
+// A generic dependency image is not part of a component descriptor's resource but will be added as label ("imagevector.gardener.cloud/images") to the component descriptor.
+//
+// Generic dependencies can be defined by
+// 1. defined as "--generic-dependency=<image name>"
+// 2. the label "imagevector.gardener.cloud/generic"
+//
+// <pre>
+// images:
+// - name: hyperkube
+//   sourceRepository: github.com/kubernetes/kubernetes
+//   repository: k8s.gcr.io/hyperkube
+//   targetVersion: "< 1.19"
+//   labels: # only needed if "--generic-dependency" is not set
+//   - name: imagevector.gardener.cloud/generic
+// </pre>
+//
+// <pre>
+// meta:
+//   schemaVersion: 'v2'
+// component:
+//   labels:
+//   - name: imagevector.gardener.cloud/images
+//     value:
+//     images:
+//	 - name: hyperkube
+//	   repository: k8s.gcr.io/hyperkube
+//	   sourceRepository: github.com/kubernetes/kubernetes
+//	   targetVersion: '< 1.19'
+//  </pre>
+//
+// 4. The image has not tag and it's repository matches a already defined resource in the component descriptor.
+// This usually means that the image is build as part of the build pipeline and the version depends on the current component.
+// In this case only labels are added to the existing resource
+//
+// <pre>
+// images:
+// - name: gardenlet
+//   sourceRepository: github.com/gardener/gardener
+//   repository: eu.gcr.io/gardener-project/gardener/gardenlet
+// </pre>
+//
+// <pre>
+// meta:
+//   schemaVersion: 'v2'
+// ...
+// resources:
+// - name: gardenlet
+//   version: "v0.0.0"
+//   type: ociImage
+//   relation: local
+//   labels:
+//   - name: imagevector.gardener.cloud/name
+//     value: gardenlet
+//   - name: imagevector.gardener.cloud/repository
+//     value: eu.gcr.io/gardener-project/gardener/gardenlet
+//   - name: imagevector.gardener.cloud/source-repository
+//     value: github.com/gardener/gardener
+//   access:
+//     type: ociRegistry
+//     imageReference: eu.gcr.io/gardener-project/gardener/gardenlet:v0.0.0
+// </pre>
 func ParseImageVector(cd *cdv2.ComponentDescriptor, reader io.Reader, opts *ParseImageOptions) error {
-	decoder := yaml.NewYAMLOrJSONDecoder(reader, 1024)
-
-	imageVector := &ImageVector{}
-	if err := decoder.Decode(imageVector); err != nil {
+	imageVector, err := DecodeImageVector(reader)
+	if err != nil {
 		return fmt.Errorf("unable to decode image vector: %w", err)
 	}
 
@@ -78,6 +220,23 @@ func ParseImageVector(cd *cdv2.ComponentDescriptor, reader io.Reader, opts *Pars
 	}
 
 	return nil
+}
+
+func DecodeImageVector(r io.Reader) (*ImageVector, error) {
+	var buf bytes.Buffer
+	if _, err := io.Copy(&buf, r); err != nil {
+		return nil, err
+	}
+	data, err := yaml.YAMLToJSON(buf.Bytes())
+	if err != nil {
+		return nil, err
+	}
+
+	imageVector := &ImageVector{}
+	if err := json.Unmarshal(data, imageVector); err != nil {
+		return nil, fmt.Errorf("unable to decode image vector: %w", err)
+	}
+	return imageVector, nil
 }
 
 type imageParser struct {
@@ -117,7 +276,7 @@ func (ip *imageParser) Parse(image ImageEntry) error {
 	}
 
 	var ociImageAccess cdv2.TypedObjectAccessor
-	if ociclient.TagIsDigest(*image.Tag) {
+	if TagIsDigest(*image.Tag) {
 		res.Version = ip.cd.GetVersion() // default to component descriptor version
 		ociImageAccess = cdv2.NewOCIRegistryAccess(image.Repository + "@" + *image.Tag)
 	} else {
@@ -224,7 +383,7 @@ func addLabelsToInlineResource(resources []cdv2.Resource, imageEntry ImageEntry)
 			return fmt.Errorf("unable to decode resource access into oci registry access for %q: %w", res.GetName(), err)
 		}
 
-		repo, _, err := ociclient.ParseImageRef(ociImageAccess.ImageReference)
+		repo, _, err := ParseImageRef(ociImageAccess.ImageReference)
 		if err != nil {
 			return fmt.Errorf("unable to parse image reference for %q: %w", res.GetName(), err)
 		}
@@ -328,25 +487,13 @@ func parseResourceAccess(imageEntry *ImageEntry, res cdv2.Resource) error {
 		return fmt.Errorf("unable to decode ociRegistry access: %w", err)
 	}
 
-	ref, err := reference.Parse(access.ImageReference)
+	ref, tag, err := ParseImageRef(access.ImageReference)
 	if err != nil {
 		return fmt.Errorf("unable to parse image reference %q: %w", access.ImageReference, err)
 	}
 
-	named, ok := ref.(reference.Named)
-	if !ok {
-		return fmt.Errorf("unable to get repository for %q", ref.String())
-	}
-	imageEntry.Repository = named.Name()
-
-	switch r := ref.(type) {
-	case reference.Tagged:
-		tag := r.Tag()
-		imageEntry.Tag = &tag
-	case reference.Digested:
-		tag := r.Digest().String()
-		imageEntry.Tag = &tag
-	}
+	imageEntry.Repository = ref
+	imageEntry.Tag = &tag
 	return nil
 }
 
