@@ -12,6 +12,8 @@ import (
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
+	"github.com/opencontainers/go-digest"
+	ocispecv1 "github.com/opencontainers/image-spec/specs-go/v1"
 
 	"github.com/gardener/image-vector/pkg"
 )
@@ -22,7 +24,7 @@ var _ = Describe("GenerateOverwrite", func() {
 		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(),
 			nil,
 			readComponentDescriptor("./testdata/01-component/component-descriptor.yaml"),
-			nil)
+			pkg.GenerateImageOverwriteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(imageVector.Images).To(HaveLen(3))
@@ -51,7 +53,7 @@ var _ = Describe("GenerateOverwrite", func() {
 		err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
-		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), nil, cd, nil)
+		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), nil, cd, pkg.GenerateImageOverwriteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(imageVector.Images).To(HaveLen(1))
@@ -80,7 +82,7 @@ var _ = Describe("GenerateOverwrite", func() {
 			"./testdata/03-autoscaler-0.13.0/component-descriptor.yaml")
 		lr, err := ctf.NewListResolver(list)
 		Expect(err).ToNot(HaveOccurred())
-		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), lr, cd, nil)
+		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), lr, cd, pkg.GenerateImageOverwriteOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(imageVector.Images).To(HaveLen(2))
@@ -110,7 +112,9 @@ var _ = Describe("GenerateOverwrite", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		list := readComponentDescriptors("./testdata/04-generic-images/component-descriptor.yaml")
-		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), nil, cd, list)
+		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), nil, cd, pkg.GenerateImageOverwriteOptions{
+			Components: list,
+		})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(imageVector.Images).To(HaveLen(3))
@@ -148,7 +152,9 @@ var _ = Describe("GenerateOverwrite", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		list := readComponentDescriptors("./testdata/04-generic-images/component-descriptor-digest.yaml")
-		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), nil, cd, list)
+		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), nil, cd, pkg.GenerateImageOverwriteOptions{
+			Components: list,
+		})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(imageVector.Images).To(HaveLen(3))
@@ -172,4 +178,42 @@ var _ = Describe("GenerateOverwrite", func() {
 		})))
 	})
 
+	It("should generate a simple image with digest from a component descriptor", func() {
+		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(),
+			nil,
+			readComponentDescriptor("./testdata/01-component/component-descriptor.yaml"),
+			pkg.GenerateImageOverwriteOptions{
+				ReplaceWithDigests: true,
+				OciClient: fakeResolver{
+					resolve: func(ctx context.Context, ref string) (name string, desc ocispecv1.Descriptor, err error) {
+						dig := digest.NewDigestFromBytes(digest.SHA256, []byte("abc"))
+						return "", ocispecv1.Descriptor{Digest: dig}, nil
+					},
+				},
+			})
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(imageVector.Images).To(HaveLen(3))
+		Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+			"Name": Equal("pause-container"),
+			"Tag":  PointTo(Equal("sha256:616263")),
+		})))
+		Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+			"Name": Equal("pause-container"),
+			"Tag":  PointTo(Equal("sha256:eb9086d472747453ad2d5cfa10f80986d9b0afb9ae9c4256fe2887b029566d06")),
+		})))
+		Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+			"Name": Equal("gardenlet"),
+			"Tag":  PointTo(Equal("sha256:616263")),
+		})))
+	})
+
 })
+
+type fakeResolver struct {
+	resolve func(ctx context.Context, ref string) (name string, desc ocispecv1.Descriptor, err error)
+}
+
+func (r fakeResolver) Resolve(ctx context.Context, ref string) (name string, desc ocispecv1.Descriptor, err error) {
+	return r.resolve(ctx, ref)
+}

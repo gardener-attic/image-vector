@@ -12,7 +12,45 @@ import (
 	"github.com/Masterminds/semver/v3"
 	cdv2 "github.com/gardener/component-spec/bindings-go/apis/v2"
 	"github.com/gardener/component-spec/bindings-go/ctf"
+	ocispecv1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
+
+// OCIResolver resolves oci references
+type OCIResolver interface {
+	// Resolve attempts to resolve the reference into a name and descriptor.
+	//
+	// The argument `ref` should be a scheme-less URI representing the remote.
+	// Structurally, it has a host and path. The "host" can be used to directly
+	// reference a specific host or be matched against a specific handler.
+	//
+	// The returned name should be used to identify the referenced entity.
+	// Depending on the remote namespace, this may be immutable or mutable.
+	// While the name may differ from ref, it should itself be a valid ref.
+	//
+	// If the resolution fails, an error will be returned.
+	Resolve(ctx context.Context, ref string) (name string, desc ocispecv1.Descriptor, err error)
+}
+
+// GenerateImageOverwriteOptions are options to configure the image vector overwrite generation.
+type GenerateImageOverwriteOptions struct {
+	// Components defines a list of component descriptors that
+	// should be used as source for the generic image dependencies.
+	// +optional
+	Components *cdv2.ComponentDescriptorList
+	// ReplaceWithDigests configures the overwrite to automatically resolve tags to use digests.
+	// If this is set to true the oci client is required
+	ReplaceWithDigests bool
+	// OciClient is a oci client to resolve references.
+	OciClient OCIResolver
+}
+
+// Validate validates the GenerateImageOverwriteOptions.
+func (o GenerateImageOverwriteOptions) Validate() error {
+	if o.ReplaceWithDigests && o.OciClient == nil {
+		return errors.New("a ociclient is required when tag should be replaced with digests")
+	}
+	return nil
+}
 
 // GenerateImageOverwrite parses a component descriptor and returns the defined image vector.
 //
@@ -102,7 +140,12 @@ import (
 func GenerateImageOverwrite(ctx context.Context,
 	compResolver ctf.ComponentResolver,
 	cd *cdv2.ComponentDescriptor,
-	list *cdv2.ComponentDescriptorList) (*ImageVector, error) {
+	opts GenerateImageOverwriteOptions) (*ImageVector, error) {
+
+	if err := opts.Validate(); err != nil {
+		return nil, err
+	}
+
 	imageVector := &ImageVector{}
 
 	// parse all images from the component descriptors resources
@@ -118,11 +161,17 @@ func GenerateImageOverwrite(ctx context.Context,
 	}
 	imageVector.Images = append(imageVector.Images, images...)
 
-	images, err = parseGenericImages(cd, list)
+	images, err = parseGenericImages(cd, opts.Components)
 	if err != nil {
 		return nil, err
 	}
 	imageVector.Images = append(imageVector.Images, images...)
+
+	if opts.ReplaceWithDigests {
+		if err := resolveDigests(ctx, opts.OciClient, imageVector); err != nil {
+			return nil, err
+		}
+	}
 
 	return imageVector, nil
 }
@@ -273,4 +322,22 @@ func parseGenericImages(ca *cdv2.ComponentDescriptor, list *cdv2.ComponentDescri
 	}
 
 	return images, nil
+}
+
+// resolveDigests replaces all tags with their digest.
+func resolveDigests(ctx context.Context, ociClient OCIResolver, iv *ImageVector) error {
+	for i, img := range iv.Images {
+		if TagIsDigest(*img.Tag) {
+			continue
+		}
+		ref := img.Repository + ":" + *img.Tag
+		_, desc, err := ociClient.Resolve(ctx, ref)
+		if err != nil {
+			return fmt.Errorf("unable to resolve digest for %q: %w", ref, err)
+		}
+
+		dig := desc.Digest.String()
+		iv.Images[i].Tag = &dig
+	}
+	return nil
 }
