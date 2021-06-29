@@ -5,7 +5,9 @@ This document describes the process how images, defined by an image vector, are 
 See the [go docs](https://github.com/gardener/image-vector/blob/main/pkg/imagevector.go#L190) for a description how the go function can be used.
 
 There are 4 different scenarios how images are added to the component descriptor.
-1. The image is defined with a tag and will be directly translated as oci image resource.
+#### 1. The image is defined with a tag
+
+If an image entry contains a tag the default behavior is to add it directly as oci image resource.
 
 <pre>
 images:
@@ -37,7 +39,11 @@ resources:
     imageReference: gcr.io/google_containers/pause-amd64:3.1
 </pre>
 
-2. The image is defined by another component so the image is added as label ("imagevector.gardener.cloud/images") to the "componentReference".
+#### 2. The image is defined by another component
+
+If an image entry contains a tag but is defined by another component, the resource is not directly added as resource but a reference to the component.
+That reference consists of a `componentReference` to that component and a label ("imagevector.gardener.cloud/images").
+The referenced component name is defined by the `sourceRepository` and the version is defined by the images `tag`.
 
 Images that are defined by other components can be specified
 1. when the image's repository matches the given "--component-prefixes"
@@ -82,12 +88,15 @@ componentReferences:
 	    targetVersion: '< 1.16'
 </pre>
 
-3. The image is a generic dependency where the actual images are defined by the overwrite.
-   A generic dependency image is not part of a component descriptor's resource but will be added as label ("imagevector.gardener.cloud/images") to the component descriptor.
+#### 3. The image is a generic dependency
+
+A generic dependency image is not part of a component descriptor's resource but will be added as label ("imagevector.gardener.cloud/images") to the component descriptor.
+Generic dependencies do not have a tag as their actual tag depends on other external factors.
 
 Generic dependencies can be defined by
-1. defined as "--generic-dependency=<image name>"
-2. the label "imagevector.gardener.cloud/generic"
+1. image entries without a tag
+2. defined as "--generic-dependency=<image name>"
+3. the label "imagevector.gardener.cloud/generic"
 
 <pre>
 images:
@@ -113,9 +122,10 @@ component:
 	    targetVersion: '< 1.19'
 </pre>
 
-4. The image has not tag and it's repository matches a already defined resource in the component descriptor.
-   This usually means that the image is build as part of the build pipeline and the version depends on the current component.
-   In this case only labels are added to the existing resource
+#### 4. The image has no tag and it's repository matches an already defined resource in the component descriptor.
+
+This usually means that the image is build as part of the build pipeline and the version depends on the current component.
+In this case only labels are added to the existing resource
 
 <pre>
 images:

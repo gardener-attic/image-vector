@@ -501,6 +501,37 @@ var _ = Describe("Add", func() {
 			})))
 		})
 
+		It("should add an image entry as generic resources hwn a tag is absent", func() {
+			ivReader, err := os.Open("./testdata/resources/30-generic.yaml")
+			Expect(err).ToNot(HaveOccurred())
+			defer func() {
+				Expect(ivReader.Close()).ToNot(HaveOccurred())
+			}()
+
+			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
+			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(cd.Resources).To(HaveLen(0))
+			Expect(cd.ComponentReferences).To(HaveLen(0))
+
+			imageLabelBytes, ok := cd.GetLabels().Get(imagevector.ImagesLabel)
+			Expect(ok).To(BeTrue())
+			imageVector := &imagevector.ImageVector{}
+			Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
+			Expect(imageVector.Images).To(HaveLen(2))
+			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":          Equal("hyperkube"),
+				"Repository":    Equal("k8s.gcr.io/hyperkube"),
+				"TargetVersion": PointTo(Equal("< 1.19")),
+			})))
+			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":          Equal("hyperkube"),
+				"Repository":    Equal("eu.gcr.io/gardener-project/hyperkube"),
+				"TargetVersion": PointTo(Equal(">= 1.19")),
+			})))
+		})
+
 		It("should add generic sources that match a given generic dependency name defined by a list of dependencies", func() {
 
 			ivReader, err := os.Open("./testdata/resources/30-generic.yaml")
@@ -545,11 +576,13 @@ var _ = Describe("Add", func() {
 			}()
 
 			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
+			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{
+				ComponentReferencePrefixes: []string{"eu.gcr.io/gardener-project"},
+			})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(cd.Resources).To(HaveLen(0))
-			Expect(cd.ComponentReferences).To(HaveLen(0))
+			Expect(cd.ComponentReferences).To(HaveLen(1))
 
 			imageLabelBytes, ok := cd.GetLabels().Get(imagevector.ImagesLabel)
 			Expect(ok).To(BeTrue())
@@ -558,7 +591,7 @@ var _ = Describe("Add", func() {
 			Expect(imageVector.Images).To(HaveLen(1))
 			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
 				"Name":          Equal("hyperkube"),
-				"Repository":    Equal("k8s.gcr.io/hyperkube"),
+				"Repository":    Equal("eu.gcr.io/gardener-project/new/hyperkube"),
 				"TargetVersion": PointTo(Equal("< 1.19")),
 			})))
 		})

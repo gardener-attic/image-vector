@@ -246,15 +246,20 @@ type imageParser struct {
 }
 
 func (ip *imageParser) Parse(image ImageEntry) error {
-	if ImageEntryIsGenericDependency(image, ip.opts) {
-		ip.genericImageVector.Images = append(ip.genericImageVector.Images, image)
-		return nil
-	}
 	if image.Tag == nil {
+		// directly set explicit generic images.
+		if ImageEntryIsGenericDependency(image, ip.opts) {
+			ip.genericImageVector.Images = append(ip.genericImageVector.Images, image)
+			return nil
+		}
+
 		// check if the image does already exist in the component descriptor
 		if err := addLabelsToInlineResource(ip.cd.Resources, image); err != nil {
 			return err
 		}
+
+		// default all non inlined resources that have no tag as generic images.
+		ip.genericImageVector.Images = append(ip.genericImageVector.Images, image)
 		return nil
 	}
 

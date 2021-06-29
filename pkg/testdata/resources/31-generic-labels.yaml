@@ -1,7 +1,7 @@
 images:
 - name: hyperkube
   sourceRepository: github.com/kubernetes/kubernetes
-  repository: k8s.gcr.io/hyperkube
+  repository: eu.gcr.io/gardener-project/new/hyperkube
   targetVersion: "< 1.19"
   labels:
   - name: imagevector.gardener.cloud/generic
@@ -9,3 +9,4 @@ images:
   sourceRepository: github.com/gardener/hyperkube
   repository: eu.gcr.io/gardener-project/hyperkube
   targetVersion: ">= 1.19"
+  tag: "1.19.0"
