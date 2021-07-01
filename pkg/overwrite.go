@@ -12,6 +12,7 @@ import (
 	"github.com/Masterminds/semver/v3"
 	cdv2 "github.com/gardener/component-spec/bindings-go/apis/v2"
 	"github.com/gardener/component-spec/bindings-go/ctf"
+	"github.com/go-logr/logr"
 	ocispecv1 "github.com/opencontainers/image-spec/specs-go/v1"
 )
 
@@ -227,7 +228,7 @@ func parseImagesFromComponentReferences(ctx context.Context, compResolver ctf.Co
 	for _, ref := range ca.ComponentReferences {
 
 		// only resolve the component reference if a images.yaml is defined
-		imageVector := &ImageVector{}
+		imageVector := &ComponentReferenceImageVector{}
 		if ok, err := getLabel(ref.GetLabels(), ImagesLabel, imageVector); !ok || err != nil {
 			if err != nil {
 				return nil, fmt.Errorf("unable to parse images label from component reference %q: %w", ref.GetName(), err)
@@ -242,24 +243,86 @@ func parseImagesFromComponentReferences(ctx context.Context, compResolver ctf.Co
 
 		// find the matching resource by name and version
 		for _, image := range imageVector.Images {
-			foundResources, err := refCD.GetResourcesByName(image.Name)
+			foundResources, err := getImageFromCompDesc(ctx, image, refCD)
 			if err != nil {
-				return nil, fmt.Errorf("unable to find images for %q in component refernce %q: %w", image.Name, ref.GetName(), err)
+				return nil, fmt.Errorf("unable to find images for %q in component reference %q: %w", image.Name, ref.GetName(), err)
 			}
 			for _, res := range foundResources {
 				if res.GetVersion() != *image.Tag {
 					continue
 				}
-				if err := parseResourceAccess(&image, res); err != nil {
-					return nil, fmt.Errorf("unable to find images for %q in component refernce %q: %w", image.Name, ref.GetName(), err)
+				if err := parseResourceAccess(&image.ImageEntry, res); err != nil {
+					return nil, fmt.Errorf("unable to find images for %q in component reference %q: %w", image.Name, ref.GetName(), err)
 				}
-				images = append(images, image)
+				images = append(images, image.ImageEntry)
 			}
 		}
 
 	}
 
 	return images, nil
+}
+
+func getImageFromCompDesc(ctx context.Context, image ComponentReferenceImageEntry, refCompDesc *cdv2.ComponentDescriptor) ([]cdv2.Resource, error) {
+	// if a resource name is defined use this
+	if len(image.ResourceID) != 0 {
+		foundResource, err := refCompDesc.GetResourceByIdentity(image.ResourceID)
+		if err != nil {
+			return nil, fmt.Errorf("unable to find images for %q in component reference %q", image.Name, image.ResourceID)
+		}
+		return []cdv2.Resource{foundResource}, nil
+	}
+
+	log := logr.FromContextOrDiscard(ctx)
+	// otherwise first try to get the resource via image name
+	foundResources, err := refCompDesc.GetResourcesByName(image.Name)
+	if err == nil {
+		return foundResources, nil
+	}
+	log.V(5).Info(fmt.Sprintf("unable to find image in component descriptor %s:%s by image name %s", refCompDesc.Name, refCompDesc.Version, image.Name), "err", err)
+
+	for _, res := range refCompDesc.Resources {
+		if res.Type != cdv2.OCIImageType {
+			continue
+		}
+		// the ref can only be matched if the oci image is defined by a ociRegistry access
+		if res.Access.GetType() != cdv2.OCIRegistryType {
+			continue
+		}
+
+		// if not found try to match it via labels
+		originalRef := ""
+		if ok, err := getLabel(res.Labels, GardenerCIOriginalRefLabel, &originalRef); ok {
+			if err != nil {
+				log.Error(err, "unable to decode into oci registry", "resource", res.Name)
+				continue
+			}
+			repo, _, err := ParseImageRef(originalRef)
+			if err != nil {
+				log.Error(err, "unable to parse image reference", "resource", res.Name, "ref", originalRef)
+				continue
+			}
+			if repo == image.Repository {
+				return []cdv2.Resource{res}, nil
+			}
+		}
+
+		// or if not found try to match the repository
+		acc := &cdv2.OCIRegistryAccess{}
+		if err := res.Access.DecodeInto(acc); err != nil {
+			log.Error(err, "unable to decode into oci registry", "resource", res.Name)
+			continue
+		}
+		repo, _, err := ParseImageRef(acc.ImageReference)
+		if err != nil {
+			log.Error(err, "unable to parse image reference", "resource", res.Name, "ref", acc.ImageReference)
+			continue
+		}
+		if repo == image.Repository {
+			return []cdv2.Resource{res}, nil
+		}
+	}
+	return nil, ReferencedResourceNotFoundError
 }
 
 // parseGenericImages parses the generic images of the component descriptor and matches all oci resources of the other component descriptors

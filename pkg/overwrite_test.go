@@ -8,6 +8,7 @@ import (
 	"context"
 	"os"
 
+	cdv2 "github.com/gardener/component-spec/bindings-go/apis/v2"
 	"github.com/gardener/component-spec/bindings-go/ctf"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
@@ -50,7 +51,7 @@ var _ = Describe("GenerateOverwrite", func() {
 		}()
 
 		cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-		err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
+		err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), nil, cd, pkg.GenerateImageOverwriteOptions{})
@@ -64,38 +65,124 @@ var _ = Describe("GenerateOverwrite", func() {
 		})))
 	})
 
-	It("should generate image sources from component references", func() {
-		ivReader, err := os.Open("./testdata/resources/21-multi-comp-ref.yaml")
-		Expect(err).ToNot(HaveOccurred())
-		defer func() {
-			Expect(ivReader.Close()).ToNot(HaveOccurred())
-		}()
+	Context("From Component Reference", func() {
+		It("should generate image sources from component references", func() {
+			ivReader, err := os.Open("./testdata/resources/21-multi-comp-ref.yaml")
+			Expect(err).ToNot(HaveOccurred())
+			defer func() {
+				Expect(ivReader.Close()).ToNot(HaveOccurred())
+			}()
 
-		cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-		err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{
-			ComponentReferencePrefixes: []string{"eu.gcr.io/gardener-project"},
+			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
+			compRes, err := ctf.NewListResolver(readComponentDescriptors(
+				"./testdata/03-autoscaler-0.13.0/component-descriptor.yaml",
+				"./testdata/02-autoscaler-0.10.1/component-descriptor.yaml"))
+			Expect(err).ToNot(HaveOccurred())
+			err = pkg.ParseImageVector(context.TODO(), compRes, cd, ivReader, &pkg.ParseImageOptions{
+				ComponentReferencePrefixes: []string{"eu.gcr.io/gardener-project"},
+			})
+			Expect(err).ToNot(HaveOccurred())
+
+			list := readComponentDescriptors(
+				"./testdata/02-autoscaler-0.10.1/component-descriptor.yaml",
+				"./testdata/03-autoscaler-0.13.0/component-descriptor.yaml")
+			lr, err := ctf.NewListResolver(list)
+			Expect(err).ToNot(HaveOccurred())
+			imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), lr, cd, pkg.GenerateImageOverwriteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(imageVector.Images).To(HaveLen(2))
+			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":          Equal("cluster-autoscaler"),
+				"Tag":           PointTo(Equal("sha256:3a33df492c3da1436d7301142d60d1c3e90c354ec70775ac664b8933e4c3d7ec")),
+				"TargetVersion": PointTo(Equal(">= 1.16")),
+			})))
+			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":          Equal("cluster-autoscaler"),
+				"Tag":           PointTo(Equal("v0.10.1")),
+				"TargetVersion": PointTo(Equal("< 1.16")),
+			})))
 		})
-		Expect(err).ToNot(HaveOccurred())
 
-		list := readComponentDescriptors(
-			"./testdata/02-autoscaler-0.10.1/component-descriptor.yaml",
-			"./testdata/03-autoscaler-0.13.0/component-descriptor.yaml")
-		lr, err := ctf.NewListResolver(list)
-		Expect(err).ToNot(HaveOccurred())
-		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), lr, cd, pkg.GenerateImageOverwriteOptions{})
-		Expect(err).ToNot(HaveOccurred())
+		It("should use the resource name", func() {
+			cd := readComponentDescriptor("./testdata/01-component/component-ref-cd.yaml")
 
-		Expect(imageVector.Images).To(HaveLen(2))
-		Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
-			"Name":          Equal("cluster-autoscaler"),
-			"Tag":           PointTo(Equal("sha256:3a33df492c3da1436d7301142d60d1c3e90c354ec70775ac664b8933e4c3d7ec")),
-			"TargetVersion": PointTo(Equal(">= 1.16")),
-		})))
-		Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
-			"Name":          Equal("cluster-autoscaler"),
-			"Tag":           PointTo(Equal("v0.10.1")),
-			"TargetVersion": PointTo(Equal("< 1.16")),
-		})))
+			list := readComponentDescriptors(
+				"./testdata/02-autoscaler-0.10.1/component-descriptor.yaml",
+				"./testdata/03-autoscaler-0.13.0/component-descriptor.yaml")
+
+			// remove labels from the cd resources
+			for i := range list.Components {
+				for j := range list.Components[i].Resources {
+					list.Components[i].Resources[j].SetLabels([]cdv2.Label{})
+				}
+			}
+
+			lr, err := ctf.NewListResolver(list)
+			Expect(err).ToNot(HaveOccurred())
+			imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), lr, cd, pkg.GenerateImageOverwriteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(imageVector.Images).To(HaveLen(2))
+			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":          Equal("autoscaler"),
+				"Tag":           PointTo(Equal("sha256:3a33df492c3da1436d7301142d60d1c3e90c354ec70775ac664b8933e4c3d7ec")),
+				"TargetVersion": PointTo(Equal(">= 1.16")),
+			})))
+			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":          Equal("autoscaler"),
+				"Tag":           PointTo(Equal("v0.10.1")),
+				"TargetVersion": PointTo(Equal("< 1.16")),
+			})))
+		})
+
+		It("should use a workaround if image and resource names do not match for legacy labels without a resource name", func() {
+			cd := readComponentDescriptor("./testdata/01-component/component-ref-cd.yaml")
+
+			list := readComponentDescriptors(
+				"./testdata/02-autoscaler-0.10.1/component-descriptor.yaml",
+				"./testdata/03-autoscaler-0.13.0/component-descriptor.yaml")
+			lr, err := ctf.NewListResolver(list)
+			Expect(err).ToNot(HaveOccurred())
+			imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), lr, cd, pkg.GenerateImageOverwriteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(imageVector.Images).To(HaveLen(2))
+			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":          Equal("autoscaler"),
+				"Tag":           PointTo(Equal("sha256:3a33df492c3da1436d7301142d60d1c3e90c354ec70775ac664b8933e4c3d7ec")),
+				"TargetVersion": PointTo(Equal(">= 1.16")),
+			})))
+			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":          Equal("autoscaler"),
+				"Tag":           PointTo(Equal("v0.10.1")),
+				"TargetVersion": PointTo(Equal("< 1.16")),
+			})))
+		})
+
+		It("should use a workaround use the gardener migration tag if image and resource names do not match for legacy labels without a resource name", func() {
+			cd := readComponentDescriptor("./testdata/01-component/legacy-component-ref-cd.yaml")
+
+			list := readComponentDescriptors(
+				"./testdata/02-autoscaler-0.10.1/component-descriptor.yaml",
+				"./testdata/03-autoscaler-0.13.0/component-descriptor.yaml")
+			lr, err := ctf.NewListResolver(list)
+			Expect(err).ToNot(HaveOccurred())
+			imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), lr, cd, pkg.GenerateImageOverwriteOptions{})
+			Expect(err).ToNot(HaveOccurred())
+
+			Expect(imageVector.Images).To(HaveLen(2))
+			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":          Equal("autoscaler"),
+				"Tag":           PointTo(Equal("sha256:3a33df492c3da1436d7301142d60d1c3e90c354ec70775ac664b8933e4c3d7ec")),
+				"TargetVersion": PointTo(Equal(">= 1.16")),
+			})))
+			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+				"Name":          Equal("autoscaler"),
+				"Tag":           PointTo(Equal("v0.10.1")),
+				"TargetVersion": PointTo(Equal("< 1.16")),
+			})))
+		})
 	})
 
 	It("should generate image sources from generic images", func() {
@@ -106,7 +193,7 @@ var _ = Describe("GenerateOverwrite", func() {
 		}()
 
 		cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-		err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{
+		err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{
 			GenericDependencies: []string{"hyperkube"},
 		})
 		Expect(err).ToNot(HaveOccurred())
@@ -146,7 +233,7 @@ var _ = Describe("GenerateOverwrite", func() {
 		}()
 
 		cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-		err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{
+		err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{
 			GenericDependencies: []string{"hyperkube"},
 		})
 		Expect(err).ToNot(HaveOccurred())

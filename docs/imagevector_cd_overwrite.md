@@ -42,7 +42,12 @@ The images are defined in a label "imagevector.gardener.cloud/images".
 The resulting image overwrite will contain all images defined in the images label.
 Their repository and tag/digest will be matched from the resources defined in the actual component's resources.
 
-Note: The images from the label are matched to the resources using their name and version. The original image reference do not exit anymore.
+By default the actual resource is matched using the `resourceId` where the referenced component descriptor's resources are serached for a resource matching the id.
+
+If no resourceId is defined the resource is tried to be matched
+1. by using the name of the image entry and the name of the resource.
+2. by using the original image reference defined by the gardenerci label `cloud.gardener.cnudie/migration/original_ref`.
+2. by using resource's imageReference.
 
 <pre>
 componentReferences:
@@ -54,6 +59,8 @@ componentReferences:
     value:
       images:
       - name: cluster-autoscaler
+        resourceId:
+          name: cluster-autoscaler
         repository: eu.gcr.io/gardener-project/gardener/autoscaler/cluster-autoscaler
         tag: "v0.10.1"
 </pre>

@@ -82,6 +82,8 @@ componentReferences:
     value:
 	  images:
 	  - name: cluster-autoscaler
+        resourceId:
+          name: cluster-autoscaler # name of the resource
 	    repository: eu.gcr.io/gardener-project/gardener/autoscaler/cluster-autoscaler
 	    sourceRepository: github.com/gardener/autoscaler
 	    tag: v0.10.0

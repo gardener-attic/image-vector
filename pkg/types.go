@@ -5,6 +5,7 @@
 package pkg
 
 import (
+	"errors"
 	"fmt"
 
 	cdv2 "github.com/gardener/component-spec/bindings-go/apis/v2"
@@ -27,6 +28,12 @@ func ExtraIdentityKey(name string) string {
 }
 
 var (
+	// ReferencedResourceNotFoundError is an error that indicates that a image is referenced by a external component
+	// but it cannot be found in the referenced component.
+	ReferencedResourceNotFoundError = errors.New("ReferencedResourceNotFound")
+)
+
+var (
 	NameLabel             = Label("name")
 	RepositoryLabel       = Label("repository")
 	SourceRepositoryLabel = Label("source-repository")
@@ -36,6 +43,9 @@ var (
 
 	TagExtraIdentity = ExtraIdentityKey("tag")
 )
+
+// GardenerCIOriginalRefLabel describes the lable of the gardener ci that is used to identify the original ref of a resource.
+const GardenerCIOriginalRefLabel = "cloud.gardener.cnudie/migration/original_ref"
 
 // ImageVector defines a image vector that defines oci images with specific requirements
 type ImageVector struct {
@@ -57,6 +67,20 @@ type ImageEntry struct {
 	RuntimeVersion *string `json:"runtimeVersion,omitempty" yaml:"runtimeVersion,omitempty"`
 	// +optional
 	TargetVersion *string `json:"targetVersion,omitempty" yaml:"targetVersion,omitempty"`
+	// Labels describes optional labels that can be used to describe the image or add additional information.
 	// +optional
 	Labels cdv2.Labels `json:"labels,omitempty" yaml:"labels,omitempty"`
+}
+
+// ComponentReferenceImageVector defines a image vector that defines oci images with specific requirements.
+type ComponentReferenceImageVector struct {
+	Images []ComponentReferenceImageEntry `json:"images"  yaml:"images,omitempty"`
+}
+
+// ComponentReferenceImageEntry defines one image entry of a image vector in a component reference
+type ComponentReferenceImageEntry struct {
+	ImageEntry
+	// ResourceID is the name of the resource that the image references in the component descriptor.
+	// +optional
+	ResourceID cdv2.Identity `json:"resourceId,omitempty"`
 }

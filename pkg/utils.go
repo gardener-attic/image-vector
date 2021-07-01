@@ -8,14 +8,8 @@ import (
 	"fmt"
 	"strings"
 
-	cdv2 "github.com/gardener/component-spec/bindings-go/apis/v2"
 	"github.com/opencontainers/go-digest"
 )
-
-// GenerateIageOverwrite abc
-func GenerateIageOverwrite(list *cdv2.ComponentDescriptorList) (map[string]string, error) {
-	return nil, nil
-}
 
 // TagIsDigest validates of a tag is a valid digest.
 func TagIsDigest(tag string) bool {

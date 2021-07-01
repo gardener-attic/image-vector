@@ -5,17 +5,18 @@
 package pkg_test
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"os"
 
 	cdv2 "github.com/gardener/component-spec/bindings-go/apis/v2"
+	"github.com/gardener/component-spec/bindings-go/ctf"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	. "github.com/onsi/gomega/gstruct"
 
 	"github.com/gardener/image-vector/pkg"
-
-	"github.com/gardener/component-cli/pkg/imagevector"
 )
 
 var _ = Describe("Add", func() {
@@ -29,7 +30,7 @@ var _ = Describe("Add", func() {
 		}()
 
 		cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-		err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
+		err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(cd.Resources).To(HaveLen(1))
@@ -39,18 +40,18 @@ var _ = Describe("Add", func() {
 		Expect(cd.Resources[0].IdentityObjectMeta).To(MatchFields(IgnoreExtras, Fields{
 			"Name":          Equal("pause-container"),
 			"Version":       Equal("3.1"),
-			"ExtraIdentity": HaveKeyWithValue(imagevector.TagExtraIdentity, "3.1"),
+			"ExtraIdentity": HaveKeyWithValue(pkg.TagExtraIdentity, "3.1"),
 			"Labels": ContainElements(
 				cdv2.Label{
-					Name:  imagevector.NameLabel,
+					Name:  pkg.NameLabel,
 					Value: json.RawMessage(`"pause-container"`),
 				},
 				cdv2.Label{
-					Name:  imagevector.RepositoryLabel,
+					Name:  pkg.RepositoryLabel,
 					Value: json.RawMessage(`"gcr.io/google_containers/pause-amd64"`),
 				},
 				cdv2.Label{
-					Name:  imagevector.SourceRepositoryLabel,
+					Name:  pkg.SourceRepositoryLabel,
 					Value: json.RawMessage(`"github.com/kubernetes/kubernetes/blob/master/build/pause/Dockerfile"`),
 				},
 			),
@@ -69,7 +70,7 @@ var _ = Describe("Add", func() {
 		}()
 
 		cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-		err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
+		err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(cd.Resources).To(HaveLen(1))
@@ -79,18 +80,18 @@ var _ = Describe("Add", func() {
 		Expect(cd.Resources[0].IdentityObjectMeta).To(MatchFields(IgnoreExtras, Fields{
 			"Name":          Equal("pause-container"),
 			"Version":       Equal("v0.0.0"),
-			"ExtraIdentity": HaveKeyWithValue(imagevector.TagExtraIdentity, "sha256:179e67c248007299e05791db36298c41cbf0992372204a68473e12795a51b06b"),
+			"ExtraIdentity": HaveKeyWithValue(pkg.TagExtraIdentity, "sha256:179e67c248007299e05791db36298c41cbf0992372204a68473e12795a51b06b"),
 			"Labels": ContainElements(
 				cdv2.Label{
-					Name:  imagevector.NameLabel,
+					Name:  pkg.NameLabel,
 					Value: json.RawMessage(`"pause-container"`),
 				},
 				cdv2.Label{
-					Name:  imagevector.RepositoryLabel,
+					Name:  pkg.RepositoryLabel,
 					Value: json.RawMessage(`"gcr.io/google_containers/pause-amd64"`),
 				},
 				cdv2.Label{
-					Name:  imagevector.SourceRepositoryLabel,
+					Name:  pkg.SourceRepositoryLabel,
 					Value: json.RawMessage(`"github.com/kubernetes/kubernetes/blob/master/build/pause/Dockerfile"`),
 				},
 			),
@@ -109,7 +110,7 @@ var _ = Describe("Add", func() {
 		}()
 
 		cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-		err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
+		err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(cd.Resources).To(HaveLen(1))
@@ -125,15 +126,15 @@ var _ = Describe("Add", func() {
 					Value: json.RawMessage(`"myval"`),
 				},
 				cdv2.Label{
-					Name:  imagevector.NameLabel,
+					Name:  pkg.NameLabel,
 					Value: json.RawMessage(`"pause-container"`),
 				},
 				cdv2.Label{
-					Name:  imagevector.RepositoryLabel,
+					Name:  pkg.RepositoryLabel,
 					Value: json.RawMessage(`"gcr.io/google_containers/pause-amd64"`),
 				},
 				cdv2.Label{
-					Name:  imagevector.SourceRepositoryLabel,
+					Name:  pkg.SourceRepositoryLabel,
 					Value: json.RawMessage(`"github.com/kubernetes/kubernetes/blob/master/build/pause/Dockerfile"`),
 				},
 			),
@@ -149,7 +150,7 @@ var _ = Describe("Add", func() {
 		}()
 
 		cd := readComponentDescriptor("./testdata/05-inline/component-descriptor.yaml")
-		err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
+		err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(cd.Resources).To(HaveLen(1))
@@ -161,15 +162,15 @@ var _ = Describe("Add", func() {
 			"Version": Equal("v0.0.0"),
 			"Labels": ContainElements(
 				cdv2.Label{
-					Name:  imagevector.NameLabel,
+					Name:  pkg.NameLabel,
 					Value: json.RawMessage(`"gardenlet"`),
 				},
 				cdv2.Label{
-					Name:  imagevector.RepositoryLabel,
+					Name:  pkg.RepositoryLabel,
 					Value: json.RawMessage(`"eu.gcr.io/gardener-project/gardener/gardenlet"`),
 				},
 				cdv2.Label{
-					Name:  imagevector.SourceRepositoryLabel,
+					Name:  pkg.SourceRepositoryLabel,
 					Value: json.RawMessage(`"github.com/gardener/gardener"`),
 				},
 			),
@@ -185,7 +186,7 @@ var _ = Describe("Add", func() {
 		}()
 
 		cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-		err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
+		err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(cd.Resources).To(HaveLen(1))
@@ -195,7 +196,7 @@ var _ = Describe("Add", func() {
 		Expect(cd.Resources[0].IdentityObjectMeta).To(MatchFields(IgnoreExtras, Fields{
 			"Name":          Equal("metrics-server"),
 			"Version":       Equal("v0.4.1"),
-			"ExtraIdentity": HaveKeyWithValue(imagevector.TagExtraIdentity, "v0.4.1"),
+			"ExtraIdentity": HaveKeyWithValue(pkg.TagExtraIdentity, "v0.4.1"),
 		}))
 	})
 
@@ -208,7 +209,7 @@ var _ = Describe("Add", func() {
 		}()
 
 		cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-		err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
+		err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{})
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(cd.Resources).To(HaveLen(2))
@@ -218,7 +219,7 @@ var _ = Describe("Add", func() {
 		Expect(cd.Resources[0].IdentityObjectMeta).To(MatchFields(IgnoreExtras, Fields{
 			"Name":          Equal("metrics-server"),
 			"Version":       Equal("v0.4.1"),
-			"ExtraIdentity": HaveKeyWithValue(imagevector.TagExtraIdentity, "v0.4.1"),
+			"ExtraIdentity": HaveKeyWithValue(pkg.TagExtraIdentity, "v0.4.1"),
 		}))
 
 		Expect(cd.Resources[1]).To(MatchFields(IgnoreExtras, Fields{
@@ -227,43 +228,126 @@ var _ = Describe("Add", func() {
 		Expect(cd.Resources[1].IdentityObjectMeta).To(MatchFields(IgnoreExtras, Fields{
 			"Name":          Equal("metrics-server"),
 			"Version":       Equal("v0.3.1"),
-			"ExtraIdentity": HaveKeyWithValue(imagevector.TagExtraIdentity, "v0.3.1"),
+			"ExtraIdentity": HaveKeyWithValue(pkg.TagExtraIdentity, "v0.3.1"),
 		}))
 	})
 
 	Context("ComponentReferences", func() {
-		It("should add image sources that match a given pattern as component reference", func() {
 
-			ivReader, err := os.Open("./testdata/resources/20-comp-ref.yaml")
+		Context("should add image sources that match a given pattern as component reference", func() {
+
+			It("match by resource name", func() {
+				ivReader, err := os.Open("./testdata/resources/20-0-comp-ref.yaml")
+				Expect(err).ToNot(HaveOccurred())
+				defer func() {
+					Expect(ivReader.Close()).ToNot(HaveOccurred())
+				}()
+
+				cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
+				compRes, err := ctf.NewListResolver(readComponentDescriptors("./testdata/02-autoscaler-0.10.1/component-descriptor.yaml"))
+				Expect(err).ToNot(HaveOccurred())
+				err = pkg.ParseImageVector(context.TODO(),
+					compRes,
+					cd,
+					ivReader,
+					&pkg.ParseImageOptions{
+						ComponentReferencePrefixes: []string{"eu.gcr.io/gardener-project/gardener"},
+					},
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(cd.Resources).To(HaveLen(0))
+				Expect(cd.ComponentReferences).To(HaveLen(1))
+				Expect(cd.ComponentReferences[0]).To(MatchFields(IgnoreExtras, Fields{
+					"Name":          Equal("cluster-autoscaler"),
+					"ComponentName": Equal("github.com/gardener/autoscaler"),
+					"Version":       Equal("v0.10.1"),
+					"ExtraIdentity": HaveKeyWithValue("imagevector-gardener-cloud+tag", "v0.10.1"),
+				}))
+
+				imageLabelBytes, ok := cd.ComponentReferences[0].GetLabels().Get(pkg.ImagesLabel)
+				Expect(ok).To(BeTrue())
+				imageVector := &pkg.ComponentReferenceImageVector{}
+				Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
+				Expect(imageVector.Images).To(HaveLen(1))
+				Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+					"ImageEntry": MatchFields(IgnoreExtras, Fields{
+						"Name": Equal("cluster-autoscaler"),
+						"Tag":  PointTo(Equal("v0.10.1")),
+					}),
+					"ResourceID": MatchKeys(0, Keys{
+						"name": Equal("cluster-autoscaler"),
+					}),
+				})))
+			})
+
+			It("match by image repository", func() {
+				ivReader, err := os.Open("./testdata/resources/20-1-comp-ref.yaml")
+				Expect(err).ToNot(HaveOccurred())
+				defer func() {
+					Expect(ivReader.Close()).ToNot(HaveOccurred())
+				}()
+
+				cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
+				compRes, err := ctf.NewListResolver(readComponentDescriptors("./testdata/02-autoscaler-0.10.1/component-descriptor.yaml"))
+				Expect(err).ToNot(HaveOccurred())
+				err = pkg.ParseImageVector(context.TODO(),
+					compRes,
+					cd,
+					ivReader,
+					&pkg.ParseImageOptions{
+						ComponentReferencePrefixes: []string{"eu.gcr.io/gardener-project/gardener"},
+					},
+				)
+				Expect(err).ToNot(HaveOccurred())
+
+				Expect(cd.Resources).To(HaveLen(0))
+				Expect(cd.ComponentReferences).To(HaveLen(1))
+				Expect(cd.ComponentReferences[0]).To(MatchFields(IgnoreExtras, Fields{
+					"Name":          Equal("autoscaler"),
+					"ComponentName": Equal("github.com/gardener/autoscaler"),
+					"Version":       Equal("v0.10.1"),
+					"ExtraIdentity": HaveKeyWithValue("imagevector-gardener-cloud+tag", "v0.10.1"),
+				}))
+
+				imageLabelBytes, ok := cd.ComponentReferences[0].GetLabels().Get(pkg.ImagesLabel)
+				Expect(ok).To(BeTrue())
+				imageVector := &pkg.ComponentReferenceImageVector{}
+				Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
+				Expect(imageVector.Images).To(HaveLen(1))
+				Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+					"ImageEntry": MatchFields(IgnoreExtras, Fields{
+						"Name": Equal("autoscaler"),
+						"Tag":  PointTo(Equal("v0.10.1")),
+					}),
+					"ResourceID": MatchKeys(0, Keys{
+						"name": Equal("cluster-autoscaler"),
+					}),
+				})))
+			})
+
+		})
+
+		It("should return an error if the referenced component cannot be found in the context", func() {
+			ivReader, err := os.Open("./testdata/resources/20-0-comp-ref.yaml")
 			Expect(err).ToNot(HaveOccurred())
 			defer func() {
 				Expect(ivReader.Close()).ToNot(HaveOccurred())
 			}()
 
 			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{
-				ComponentReferencePrefixes: []string{"eu.gcr.io/gardener-project/gardener"},
-			})
+			compRes, err := ctf.NewListResolver(readComponentDescriptors())
 			Expect(err).ToNot(HaveOccurred())
-
-			Expect(cd.Resources).To(HaveLen(0))
-			Expect(cd.ComponentReferences).To(HaveLen(1))
-			Expect(cd.ComponentReferences[0]).To(MatchFields(IgnoreExtras, Fields{
-				"Name":          Equal("cluster-autoscaler"),
-				"ComponentName": Equal("github.com/gardener/autoscaler"),
-				"Version":       Equal("v0.10.0"),
-				"ExtraIdentity": HaveKeyWithValue("imagevector-gardener-cloud+tag", "v0.10.0"),
-			}))
-
-			imageLabelBytes, ok := cd.ComponentReferences[0].GetLabels().Get(imagevector.ImagesLabel)
-			Expect(ok).To(BeTrue())
-			imageVector := &imagevector.ImageVector{}
-			Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
-			Expect(imageVector.Images).To(HaveLen(1))
-			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
-				"Name": Equal("cluster-autoscaler"),
-				"Tag":  PointTo(Equal("v0.10.0")),
-			})))
+			err = pkg.ParseImageVector(context.TODO(),
+				compRes,
+				cd,
+				ivReader,
+				&pkg.ParseImageOptions{
+					ComponentReferencePrefixes: []string{"eu.gcr.io/gardener-project/gardener"},
+				},
+			)
+			Expect(err).To(HaveOccurred())
+			Expect(errors.Is(err, ctf.NotFoundError)).To(BeTrue())
 		})
 
 		It("should add image sources with the component reference label as component reference", func() {
@@ -275,7 +359,9 @@ var _ = Describe("Add", func() {
 			}()
 
 			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
+			compRes, err := ctf.NewListResolver(readComponentDescriptors("./testdata/02-autoscaler-0.10.1/component-descriptor.yaml"))
+			Expect(err).ToNot(HaveOccurred())
+			err = pkg.ParseImageVector(context.TODO(), compRes, cd, ivReader, &pkg.ParseImageOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(cd.Resources).To(HaveLen(0))
@@ -283,18 +369,18 @@ var _ = Describe("Add", func() {
 			Expect(cd.ComponentReferences[0]).To(MatchFields(IgnoreExtras, Fields{
 				"Name":          Equal("cluster-autoscaler"),
 				"ComponentName": Equal("github.com/gardener/autoscaler"),
-				"Version":       Equal("v0.10.0"),
-				"ExtraIdentity": HaveKeyWithValue("imagevector-gardener-cloud+tag", "v0.10.0"),
+				"Version":       Equal("v0.10.1"),
+				"ExtraIdentity": HaveKeyWithValue("imagevector-gardener-cloud+tag", "v0.10.1"),
 			}))
 
-			imageLabelBytes, ok := cd.ComponentReferences[0].GetLabels().Get(imagevector.ImagesLabel)
+			imageLabelBytes, ok := cd.ComponentReferences[0].GetLabels().Get(pkg.ImagesLabel)
 			Expect(ok).To(BeTrue())
-			imageVector := &imagevector.ImageVector{}
+			imageVector := &pkg.ImageVector{}
 			Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
 			Expect(imageVector.Images).To(HaveLen(1))
 			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
 				"Name": Equal("cluster-autoscaler"),
-				"Tag":  PointTo(Equal("v0.10.0")),
+				"Tag":  PointTo(Equal("v0.10.1")),
 			})))
 		})
 
@@ -307,26 +393,28 @@ var _ = Describe("Add", func() {
 			}()
 
 			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
+			compRes, err := ctf.NewListResolver(readComponentDescriptors("./testdata/03-autoscaler-0.13.0/component-descriptor.yaml"))
+			Expect(err).ToNot(HaveOccurred())
+			err = pkg.ParseImageVector(context.TODO(), compRes, cd, ivReader, &pkg.ParseImageOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(cd.Resources).To(HaveLen(0))
 			Expect(cd.ComponentReferences).To(HaveLen(1))
 			Expect(cd.ComponentReferences[0]).To(MatchFields(IgnoreExtras, Fields{
 				"Name":          Equal("cla"),
-				"ComponentName": Equal("example.com/autoscaler"),
-				"Version":       Equal("v0.0.1"),
-				"ExtraIdentity": HaveKeyWithValue("imagevector-gardener-cloud+tag", "v0.0.1"),
+				"ComponentName": Equal("github.com/gardener/autoscaler"),
+				"Version":       Equal("v0.13.0"),
+				"ExtraIdentity": HaveKeyWithValue("imagevector-gardener-cloud+tag", "v0.13.0"),
 			}))
 
-			imageLabelBytes, ok := cd.ComponentReferences[0].GetLabels().Get(imagevector.ImagesLabel)
+			imageLabelBytes, ok := cd.ComponentReferences[0].GetLabels().Get(pkg.ImagesLabel)
 			Expect(ok).To(BeTrue())
-			imageVector := &imagevector.ImageVector{}
+			imageVector := &pkg.ImageVector{}
 			Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
 			Expect(imageVector.Images).To(HaveLen(1))
 			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
 				"Name": Equal("cluster-autoscaler"),
-				"Tag":  PointTo(Equal("v0.10.0")),
+				"Tag":  PointTo(Equal("v0.10.1")),
 			})))
 		})
 
@@ -339,7 +427,9 @@ var _ = Describe("Add", func() {
 			}()
 
 			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{
+			compRes, err := ctf.NewListResolver(readComponentDescriptors())
+			Expect(err).ToNot(HaveOccurred())
+			err = pkg.ParseImageVector(context.TODO(), compRes, cd, ivReader, &pkg.ParseImageOptions{
 				ComponentReferencePrefixes: []string{"eu.gcr.io/gardener-project/gardener"},
 			})
 			Expect(err).ToNot(HaveOccurred())
@@ -350,14 +440,16 @@ var _ = Describe("Add", func() {
 
 		It("should not add a image sources that match a given pattern as component reference but is excluded", func() {
 
-			ivReader, err := os.Open("./testdata/resources/20-comp-ref.yaml")
+			ivReader, err := os.Open("./testdata/resources/20-0-comp-ref.yaml")
 			Expect(err).ToNot(HaveOccurred())
 			defer func() {
 				Expect(ivReader.Close()).ToNot(HaveOccurred())
 			}()
 
 			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{
+			compRes, err := ctf.NewListResolver(readComponentDescriptors())
+			Expect(err).ToNot(HaveOccurred())
+			err = pkg.ParseImageVector(context.TODO(), compRes, cd, ivReader, &pkg.ParseImageOptions{
 				ComponentReferencePrefixes: []string{"eu.gcr.io/gardener-project/gardener"},
 				ExcludeComponentReference:  []string{"cluster-autoscaler"},
 			})
@@ -370,57 +462,9 @@ var _ = Describe("Add", func() {
 			}))
 			Expect(cd.Resources[0].IdentityObjectMeta).To(MatchFields(IgnoreExtras, Fields{
 				"Name":          Equal("cluster-autoscaler"),
-				"Version":       Equal("v0.10.0"),
-				"ExtraIdentity": HaveKeyWithValue(imagevector.TagExtraIdentity, "v0.10.0"),
-			}))
-		})
-
-		It("should add two image sources that match a given pattern as component reference", func() {
-
-			ivReader, err := os.Open("./testdata/resources/21-multi-comp-ref.yaml")
-			Expect(err).ToNot(HaveOccurred())
-			defer func() {
-				Expect(ivReader.Close()).ToNot(HaveOccurred())
-			}()
-
-			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{
-				ComponentReferencePrefixes: []string{"eu.gcr.io/gardener-project/gardener"},
-			})
-			Expect(err).ToNot(HaveOccurred())
-
-			Expect(cd.Resources).To(HaveLen(0))
-			Expect(cd.ComponentReferences).To(HaveLen(2))
-			Expect(cd.ComponentReferences[0]).To(MatchFields(IgnoreExtras, Fields{
-				"Name":          Equal("cluster-autoscaler"),
-				"ComponentName": Equal("github.com/gardener/autoscaler"),
-				"Version":       Equal("v0.13.0"),
-			}))
-			Expect(cd.ComponentReferences[1]).To(MatchFields(IgnoreExtras, Fields{
-				"Name":          Equal("cluster-autoscaler"),
-				"ComponentName": Equal("github.com/gardener/autoscaler"),
 				"Version":       Equal("v0.10.1"),
+				"ExtraIdentity": HaveKeyWithValue(pkg.TagExtraIdentity, "v0.10.1"),
 			}))
-
-			imageLabelBytes, ok := cd.ComponentReferences[1].GetLabels().Get(imagevector.ImagesLabel)
-			Expect(ok).To(BeTrue())
-			imageVector := &imagevector.ImageVector{}
-			Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
-			Expect(imageVector.Images).To(HaveLen(1))
-			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
-				"Name": Equal("cluster-autoscaler"),
-				"Tag":  PointTo(Equal("v0.10.1")),
-			})))
-
-			imageLabelBytes, ok = cd.ComponentReferences[0].GetLabels().Get(imagevector.ImagesLabel)
-			Expect(ok).To(BeTrue())
-			imageVector = &imagevector.ImageVector{}
-			Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
-			Expect(imageVector.Images).To(HaveLen(1))
-			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
-				"Name": Equal("cluster-autoscaler"),
-				"Tag":  PointTo(Equal("v0.13.0")),
-			})))
 		})
 
 		It("should add two image sources that match a given pattern as one component reference", func() {
@@ -432,7 +476,9 @@ var _ = Describe("Add", func() {
 			}()
 
 			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{
+			compRes, err := ctf.NewListResolver(readComponentDescriptors("./testdata/03-autoscaler-0.13.0/component-descriptor.yaml"))
+			Expect(err).ToNot(HaveOccurred())
+			err = pkg.ParseImageVector(context.TODO(), compRes, cd, ivReader, &pkg.ParseImageOptions{
 				ComponentReferencePrefixes: []string{"eu.gcr.io/gardener-project/gardener"},
 			})
 			Expect(err).ToNot(HaveOccurred())
@@ -443,12 +489,12 @@ var _ = Describe("Add", func() {
 				"Name":          Equal("cluster-autoscaler"),
 				"ComponentName": Equal("github.com/gardener/autoscaler"),
 				"Version":       Equal("v0.13.0"),
-				"ExtraIdentity": And(HaveKey(imagevector.TagExtraIdentity), Not(HaveKey("name"))),
+				"ExtraIdentity": And(HaveKey(pkg.TagExtraIdentity), Not(HaveKey("name"))),
 			}))
 
-			imageLabelBytes, ok := cd.ComponentReferences[0].GetLabels().Get(imagevector.ImagesLabel)
+			imageLabelBytes, ok := cd.ComponentReferences[0].GetLabels().Get(pkg.ImagesLabel)
 			Expect(ok).To(BeTrue())
-			imageVector := &imagevector.ImageVector{}
+			imageVector := &pkg.ImageVector{}
 			Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
 			Expect(imageVector.Images).To(HaveLen(2))
 			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
@@ -474,7 +520,7 @@ var _ = Describe("Add", func() {
 			}()
 
 			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{
+			err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{
 				GenericDependencies: []string{
 					"hyperkube",
 				},
@@ -484,9 +530,9 @@ var _ = Describe("Add", func() {
 			Expect(cd.Resources).To(HaveLen(0))
 			Expect(cd.ComponentReferences).To(HaveLen(0))
 
-			imageLabelBytes, ok := cd.GetLabels().Get(imagevector.ImagesLabel)
+			imageLabelBytes, ok := cd.GetLabels().Get(pkg.ImagesLabel)
 			Expect(ok).To(BeTrue())
-			imageVector := &imagevector.ImageVector{}
+			imageVector := &pkg.ImageVector{}
 			Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
 			Expect(imageVector.Images).To(HaveLen(2))
 			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
@@ -509,15 +555,15 @@ var _ = Describe("Add", func() {
 			}()
 
 			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{})
+			err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
 			Expect(cd.Resources).To(HaveLen(0))
 			Expect(cd.ComponentReferences).To(HaveLen(0))
 
-			imageLabelBytes, ok := cd.GetLabels().Get(imagevector.ImagesLabel)
+			imageLabelBytes, ok := cd.GetLabels().Get(pkg.ImagesLabel)
 			Expect(ok).To(BeTrue())
-			imageVector := &imagevector.ImageVector{}
+			imageVector := &pkg.ImageVector{}
 			Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
 			Expect(imageVector.Images).To(HaveLen(2))
 			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
@@ -541,7 +587,7 @@ var _ = Describe("Add", func() {
 			}()
 
 			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{
+			err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{
 				GenericDependencies: []string{
 					"hyperkube",
 				},
@@ -551,9 +597,9 @@ var _ = Describe("Add", func() {
 			Expect(cd.Resources).To(HaveLen(0))
 			Expect(cd.ComponentReferences).To(HaveLen(0))
 
-			imageLabelBytes, ok := cd.GetLabels().Get(imagevector.ImagesLabel)
+			imageLabelBytes, ok := cd.GetLabels().Get(pkg.ImagesLabel)
 			Expect(ok).To(BeTrue())
-			imageVector := &imagevector.ImageVector{}
+			imageVector := &pkg.ImageVector{}
 			Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
 			Expect(imageVector.Images).To(HaveLen(2))
 			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
@@ -576,17 +622,15 @@ var _ = Describe("Add", func() {
 			}()
 
 			cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
-			err = pkg.ParseImageVector(cd, ivReader, &pkg.ParseImageOptions{
-				ComponentReferencePrefixes: []string{"eu.gcr.io/gardener-project"},
-			})
+			err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{})
 			Expect(err).ToNot(HaveOccurred())
 
-			Expect(cd.Resources).To(HaveLen(0))
-			Expect(cd.ComponentReferences).To(HaveLen(1))
+			Expect(cd.Resources).To(HaveLen(1))
+			Expect(cd.ComponentReferences).To(HaveLen(0))
 
-			imageLabelBytes, ok := cd.GetLabels().Get(imagevector.ImagesLabel)
+			imageLabelBytes, ok := cd.GetLabels().Get(pkg.ImagesLabel)
 			Expect(ok).To(BeTrue())
-			imageVector := &imagevector.ImageVector{}
+			imageVector := &pkg.ImageVector{}
 			Expect(json.Unmarshal(imageLabelBytes, imageVector)).To(Succeed())
 			Expect(imageVector.Images).To(HaveLen(1))
 			Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{

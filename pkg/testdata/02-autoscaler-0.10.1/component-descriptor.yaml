@@ -19,6 +19,9 @@ component:
   - name: cluster-autoscaler
     version: "v0.10.1"
     type: ociImage
+    labels:
+    - name: cloud.gardener.cnudie/migration/original_ref
+      value: "eu.gcr.io/gardener-project/gardener/autoscaler/cluster-autoscaler:v0.10.1"
     access:
       type: ociRegistry
       imageReference: eu.gcr.io/gardener-project/gardener/autoscaler/cluster-autoscaler:v0.10.1

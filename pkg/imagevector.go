@@ -6,6 +6,7 @@ package pkg
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -13,6 +14,8 @@ import (
 
 	cdv2 "github.com/gardener/component-spec/bindings-go/apis/v2"
 	"github.com/gardener/component-spec/bindings-go/apis/v2/cdutils"
+	"github.com/gardener/component-spec/bindings-go/ctf"
+	"github.com/go-logr/logr"
 	"sigs.k8s.io/yaml"
 )
 
@@ -187,7 +190,12 @@ type ComponentReferenceLabelValue struct {
 //     type: ociRegistry
 //     imageReference: eu.gcr.io/gardener-project/gardener/gardenlet:v0.0.0
 // </pre>
-func ParseImageVector(cd *cdv2.ComponentDescriptor, reader io.Reader, opts *ParseImageOptions) error {
+func ParseImageVector(ctx context.Context,
+	compResolver ctf.ComponentResolver,
+	cd *cdv2.ComponentDescriptor,
+	reader io.Reader,
+	opts *ParseImageOptions) error {
+
 	imageVector, err := DecodeImageVector(reader)
 	if err != nil {
 		return fmt.Errorf("unable to decode image vector: %w", err)
@@ -201,10 +209,11 @@ func ParseImageVector(cd *cdv2.ComponentDescriptor, reader io.Reader, opts *Pars
 		opts:               opts,
 		genericImageVector: &ImageVector{},
 		cd:                 cd,
+		compResolver:       compResolver,
 	}
 
 	for _, image := range imageVector.Images {
-		if err := ip.Parse(image); err != nil {
+		if err := ip.Parse(ctx, image); err != nil {
 			return err
 		}
 	}
@@ -243,9 +252,10 @@ type imageParser struct {
 	opts               *ParseImageOptions
 	genericImageVector *ImageVector
 	cd                 *cdv2.ComponentDescriptor
+	compResolver       ctf.ComponentResolver
 }
 
-func (ip *imageParser) Parse(image ImageEntry) error {
+func (ip *imageParser) Parse(ctx context.Context, image ImageEntry) error {
 	if image.Tag == nil {
 		// directly set explicit generic images.
 		if ImageEntryIsGenericDependency(image, ip.opts) {
@@ -264,7 +274,7 @@ func (ip *imageParser) Parse(image ImageEntry) error {
 	}
 
 	if ImageEntryIsComponentReference(image, ip.opts) {
-		return ip.AddAsComponentReference(image)
+		return ip.AddAsComponentReference(ctx, image)
 	}
 
 	res := cdv2.Resource{
@@ -332,7 +342,7 @@ func ImageEntryIsComponentReference(image ImageEntry, opts *ParseImageOptions) b
 	return entryMatchesPrefix(opts.ComponentReferencePrefixes, image.Repository)
 }
 
-func (ip *imageParser) AddAsComponentReference(image ImageEntry) error {
+func (ip *imageParser) AddAsComponentReference(ctx context.Context, image ImageEntry) error {
 	// add image as component reference
 	ref := cdv2.ComponentReference{
 		Name:          image.Name,
@@ -364,13 +374,66 @@ func (ip *imageParser) AddAsComponentReference(image ImageEntry) error {
 		}
 	}
 
+	// resolve component
+	refCompDesc, err := ip.compResolver.Resolve(ctx, ip.cd.GetEffectiveRepositoryContext(), ref.ComponentName, ref.Version)
+	if err != nil {
+		return fmt.Errorf("image %s is defined by a external component %s:%s but it's ComponentDescriptor cannot be resolved: %w",
+			image.Name, ref.ComponentName, ref.Version, err)
+	}
+
+	// try to find the correct resource name/identity for the image
+	resourceID, err := tryFindResourceForImage(ctx, refCompDesc, image)
+	if err != nil {
+		return fmt.Errorf("image %s is defined by a external component %s:%s but cannot be found in that component descriptor",
+			image.Name, refCompDesc.Name, refCompDesc.Version)
+	}
+
 	// add complete image as label
-	var err error
-	ip.cd.ComponentReferences, err = addComponentReference(ip.cd.ComponentReferences, ref, image)
+	ip.cd.ComponentReferences, err = addComponentReference(ip.cd.ComponentReferences, ref, ComponentReferenceImageEntry{
+		ImageEntry: image,
+		ResourceID: resourceID,
+	})
 	if err != nil {
 		return fmt.Errorf("unable to add component reference for %q: %w", image.Name, err)
 	}
 	return nil
+}
+
+func tryFindResourceForImage(ctx context.Context, cd *cdv2.ComponentDescriptor, image ImageEntry) (cdv2.Identity, error) {
+	log := logr.FromContextOrDiscard(ctx)
+	var matchedImgID cdv2.Identity
+	for _, res := range cd.Resources {
+		// first try to match the resource name
+		if image.Name == res.Name {
+			return res.GetIdentity(), nil
+		}
+		// otherwise try to match the imageReference
+		if res.Type != cdv2.OCIImageType {
+			continue
+		}
+		// the ref can only be matched if the oci image is defined by a ociRegistry access
+		if res.Access.GetType() != cdv2.OCIRegistryType {
+			continue
+		}
+		acc := &cdv2.OCIRegistryAccess{}
+		if err := res.Access.DecodeInto(acc); err != nil {
+			log.Error(err, "unable to decode into oci registry", "resource", res.Name)
+			continue
+		}
+		repo, _, err := ParseImageRef(acc.ImageReference)
+		if err != nil {
+			log.Error(err, "unable to parse image reference", "resource", res.Name, "ref", acc.ImageReference)
+			continue
+		}
+		if repo == image.Repository {
+			matchedImgID = res.GetIdentity()
+		}
+	}
+	if matchedImgID != nil {
+		return matchedImgID, nil
+	}
+
+	return nil, ReferencedResourceNotFoundError
 }
 
 // addLabelsToInlineResource adds the image entry labels to the resource that matches the repository
@@ -449,12 +512,12 @@ func addLabelsToResource(res *cdv2.Resource, imageEntry ImageEntry) error {
 
 // addComponentReference adds the given component to the list of component references.
 // if the component is already declared, the given image entry is appended to the images label
-func addComponentReference(refs []cdv2.ComponentReference, new cdv2.ComponentReference, entry ImageEntry) ([]cdv2.ComponentReference, error) {
+func addComponentReference(refs []cdv2.ComponentReference, new cdv2.ComponentReference, entry ComponentReferenceImageEntry) ([]cdv2.ComponentReference, error) {
 	for i, ref := range refs {
 		if ref.Name == new.Name && ref.Version == new.Version {
 			// parse current images and add the image
-			imageVector := &ImageVector{
-				Images: []ImageEntry{entry},
+			imageVector := &ComponentReferenceImageVector{
+				Images: []ComponentReferenceImageEntry{entry},
 			}
 			data, ok := ref.GetLabels().Get(ImagesLabel)
 			if ok {
@@ -473,8 +536,8 @@ func addComponentReference(refs []cdv2.ComponentReference, new cdv2.ComponentRef
 		}
 	}
 
-	imageVector := ImageVector{
-		Images: []ImageEntry{entry},
+	imageVector := ComponentReferenceImageVector{
+		Images: []ComponentReferenceImageEntry{entry},
 	}
 	var err error
 	new.Labels, err = cdutils.SetLabel(new.Labels, ImagesLabel, imageVector)
@@ -509,7 +572,7 @@ func getLabel(labels cdv2.Labels, name string, into interface{}) (bool, error) {
 	}
 
 	if err := json.Unmarshal(val, into); err != nil {
-		return false, err
+		return true, err
 	}
 	return true, nil
 }
