@@ -41,7 +41,7 @@ var (
 	RuntimeVersionLabel   = Label("runtime-version")
 	ImagesLabel           = Label("images")
 
-	TagExtraIdentity = ExtraIdentityKey("tag")
+	TagExtraIdentity        = ExtraIdentityKey("tag")
 	RepositoryExtraIdentity = ExtraIdentityKey("repository")
 )
 

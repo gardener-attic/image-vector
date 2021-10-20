@@ -285,18 +285,18 @@ var _ = Describe("GenerateOverwrite", func() {
 		Expect(err).ToNot(HaveOccurred())
 
 		Expect(imageVector.Images).To(HaveLen(2))
-		//Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
-		//	"Name":          Equal("hyperkube"),
-		//	"Repository":    Equal("eu.gcr.io/gardener-project/hyperkube"),
-		//	"Tag":           PointTo(Equal("v1.19.2")),
-		//	"TargetVersion": PointTo(Equal("1.19.2")),
-		//})))
-		//Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
-		//	"Name":          Equal("hyperkube"),
-		//	"Repository":    Equal("k8s.gcr.io/hyperkube"),
-		//	"Tag":           PointTo(Equal("v1.18.6")),
-		//	"TargetVersion": PointTo(Equal("1.18.6")),
-		//})))
+		Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+			"Name":          Equal("kube-apiserver"),
+			"Repository":    Equal("eu.gcr.io/gardener-project/hyperkube"),
+			"Tag":           PointTo(Equal("v1.16.15-mod1")),
+			"TargetVersion": PointTo(Equal("1.16.15")),
+		})))
+		Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+			"Name":          Equal("kube-apiserver"),
+			"Repository":    Equal("eu.gcr.io/gardener-project/hyperkube"),
+			"Tag":           PointTo(Equal("v1.15.12-mod1")),
+			"TargetVersion": PointTo(Equal("1.15.12")),
+		})))
 	})
 
 	It("should generate a simple image with digest from a component descriptor", func() {
