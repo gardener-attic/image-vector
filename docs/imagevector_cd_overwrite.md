@@ -96,8 +96,6 @@ component:
       "imagevector-gardener-cloud+tag": "v1.19.4"
       "imagevector-gardener-cloud+repository": "k8s.gcr.io/hyperkube"
     labels:
-    - name: imagevector.gardener.cloud/name
-      value: hyperkube
     - name: imagevector.gardener.cloud/repository
       value: k8s.gcr.io/hyperkube
     access:

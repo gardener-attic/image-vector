@@ -451,11 +451,9 @@ func resourceMatchesGenericImage(ctx context.Context, image ImageEntry, res cdv2
 
 	// this check should become the only check in the future
 	// all subsequent checks are only intermediate fallbacks
-	if len(res.ExtraIdentity) > 0 {
-		repo, ok := res.ExtraIdentity[RepositoryExtraIdentity]
-		if ok && repo == image.Repository {
-			return true, nil
-		}
+	extraIdentityRepo, ok := res.GetIdentity()[RepositoryExtraIdentity]
+	if ok && extraIdentityRepo == image.Repository {
+		return true, nil
 	}
 
 	var imageName string
