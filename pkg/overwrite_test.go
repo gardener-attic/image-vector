@@ -265,6 +265,40 @@ var _ = Describe("GenerateOverwrite", func() {
 		})))
 	})
 
+	It("should generate image sources from generic images based on extra identity", func() {
+		ivReader, err := os.Open("./testdata/resources/31-generic.yaml")
+		Expect(err).ToNot(HaveOccurred())
+		defer func() {
+			Expect(ivReader.Close()).ToNot(HaveOccurred())
+		}()
+
+		cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
+		err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{
+			GenericDependencies: []string{"hyperkube"},
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		list := readComponentDescriptors("./testdata/04-generic-images/component-descriptor2.yaml")
+		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(), nil, cd, pkg.GenerateImageOverwriteOptions{
+			Components: list,
+		})
+		Expect(err).ToNot(HaveOccurred())
+
+		Expect(imageVector.Images).To(HaveLen(2))
+		Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+			"Name":          Equal("kube-apiserver"),
+			"Repository":    Equal("eu.gcr.io/gardener-project/hyperkube"),
+			"Tag":           PointTo(Equal("v1.16.15-mod1")),
+			"TargetVersion": PointTo(Equal("1.16.15")),
+		})))
+		Expect(imageVector.Images).To(ContainElement(MatchFields(IgnoreExtras, Fields{
+			"Name":          Equal("kube-apiserver"),
+			"Repository":    Equal("eu.gcr.io/gardener-project/hyperkube"),
+			"Tag":           PointTo(Equal("v1.15.12-mod1")),
+			"TargetVersion": PointTo(Equal("1.15.12")),
+		})))
+	})
+
 	It("should generate a simple image with digest from a component descriptor", func() {
 		imageVector, err := pkg.GenerateImageOverwrite(context.TODO(),
 			nil,

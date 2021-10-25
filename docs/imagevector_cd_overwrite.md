@@ -69,7 +69,7 @@ componentReferences:
 
 Generic images are images that do not directly result in a resource.
 They will be matched with another component descriptor that actually defines the images.
-The other component descriptor MUST have the "imagevector.gardener.cloud/name" label in order to be matched.
+The other component descriptor MUST have the extraIdentity "imagevector-gardener-cloud+repository" in order to be matched.
 
 <pre>
 meta:
@@ -94,9 +94,8 @@ component:
     type: ociImage
     extraIdentity:
       "imagevector-gardener-cloud+tag": "v1.19.4"
+      "imagevector-gardener-cloud+repository": "k8s.gcr.io/hyperkube"
     labels:
-    - name: imagevector.gardener.cloud/name
-      value: hyperkube
     - name: imagevector.gardener.cloud/repository
       value: k8s.gcr.io/hyperkube
     access:
