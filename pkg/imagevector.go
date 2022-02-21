@@ -343,9 +343,10 @@ func preventLossOfTargetVersionLabel(res1, res2 *cdv2.Resource) error {
 
 	if hasLabel1 && hasLabel2 && targetVersion1 != targetVersion2 {
 		tag := res2.IdentityObjectMeta.GetIdentity()[TagExtraIdentity]
-		return fmt.Errorf(`there is more than one image entry with name %q and tag %q. `+
-			`Only one entry for the same name-tag combination is supported. A solution might be to combine `+
-			`entries by using a range of target versions, for example: targetVersion: ">= 1.18, < 1.22"`,
+
+		return fmt.Errorf(`there is more than one target version expression specified for name %q and tag %q. `+
+			`A solution might be to combine the target version expressions by using a range, for example: `+
+			`targetVersion: ">= 1.18, < 1.22"`,
 			res2.Name, tag)
 	}
 
