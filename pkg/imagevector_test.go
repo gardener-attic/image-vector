@@ -232,6 +232,19 @@ var _ = Describe("Add", func() {
 		}))
 	})
 
+	It("should throw an error in case of different target version labels for the same name and tag", func() {
+		ivReader, err := os.Open("./testdata/resources/12-multi-targetversion-same-name-and-tag.yaml")
+		Expect(err).ToNot(HaveOccurred())
+		defer func() {
+			Expect(ivReader.Close()).ToNot(HaveOccurred())
+		}()
+
+		cd := readComponentDescriptor("./testdata/00-component/component-descriptor.yaml")
+
+		err = pkg.ParseImageVector(context.TODO(), nil, cd, ivReader, &pkg.ParseImageOptions{})
+		Expect(err).To(HaveOccurred())
+	})
+
 	Context("ComponentReferences", func() {
 
 		Context("should add image sources that match a given pattern as component reference", func() {
